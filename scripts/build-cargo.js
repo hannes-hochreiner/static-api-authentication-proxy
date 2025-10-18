@@ -1,9 +1,6 @@
 import { $ } from "bun";
 import { env } from "process";
 import { parseArgs } from "util";
-import { stat } from 'node:fs/promises';
-
-env.PATH = env.buildInputs.split(" ").map(p => `${p}/bin`).join(":");
 
 const { values } = parseArgs({
   args: Bun.argv,
@@ -42,9 +39,8 @@ $.cwd(values.source).env({
   CARGO_TARGET_DIR: cargo_target,
 });
 
-// Must use which to find cargo, because env.PATH is not picked up otherwise (https://github.com/oven-sh/bun/issues/9747)
-await $`$(which cargo) build --release -p ${values.package} --offline --frozen --verbose`;
-await $`$(which cp) ${cargo_target}/release/${values.package} ${env.out}/bin/${values.package}`;
+await $`cargo build --release -p ${values.package} --offline --frozen --verbose`;
+await $`cp ${cargo_target}/release/${values.package} ${env.out}/bin/${values.package}`;
 
 try {
   await $`rm -r ${cargo_home}`;

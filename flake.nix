@@ -32,38 +32,30 @@
 
       siap-cargo-toml = (builtins.fromTOML (builtins.readFile ./Cargo.toml));
       hashes-toml = (builtins.fromTOML (builtins.readFile ./hashes.toml));
+      path = builtins.concatStringsSep ":" (builtins.map (p: p + "/bin") (with pkgs; [gcc_multi rust-bin-custom coreutils]));
 
       siap-deps = derivation {
         inherit system;
         name = "${siap-cargo-toml.package.name}-${hashes-toml.cargo_lock}-deps";
         builder = "${pkgs-unstable.bun}/bin/bun";
-        buildInputs = with pkgs; [
-          rust-bin-custom
-          bash
-          coreutils
-        ];
+        PATH = path;
         args = [ "run" ./scripts/vendor-cargo.js "--source" ./. ];
 
         outputHashAlgo = "sha256";
         outputHashMode = "recursive";
         outputHash = hashes-toml.deps;
-        # outputHash = pkgs.lib.fakeHash;
       };
 
       siap-bin = derivation {
           inherit system;
           name = "${siap-cargo-toml.package.name}-v${siap-cargo-toml.package.version}";
           builder = "${pkgs-unstable.bun}/bin/bun";
-          buildInputs = with pkgs; [
-            gcc_multi
-            rust-bin-custom
-            coreutils
-          ];
+          PATH = path;
           args = [ "run" ./scripts/build-cargo.js "--source" ./. "--dependencies" siap-deps "--package" "static-ip-authentication-proxy" hashes-toml.cargo_config ];
       };
     in {
       packages.${system} = {
-        # deps = siap-deps;
+        deps = siap-deps;
         bin = siap-bin;
         default = siap-bin;
       };
@@ -147,14 +139,13 @@
         };
 
       devShells.${system}.default = pkgs.mkShell {
-        name = "snapshot-browser-api";
+        name = "siap";
 
         shellHook = ''
           # exec nu
         '';
         buildInputs = with pkgs; [
           rust-bin-custom
-          # busybox
           pkgs-unstable.bun
         ];
       };
