@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "update-cargo": "bun run scripts/update-cargo.js"
+  },
+  "type": "module",
+  "private": true
+}
