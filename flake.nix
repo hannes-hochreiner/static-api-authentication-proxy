@@ -63,45 +63,58 @@
       nixosModules.${system}.default = { config, lib, pkgs, ... }:
         with lib;
         let
-          cfg = config.hochreiner.services.snapshot-browser-api;
+          cfg = config.hochreiner.services.static-ip-authentication-proxy;
     
-          snapshotRoot = {
+          ipMapping = {
             options = {
-              path = mkOption {
-                type = types.path;
-                description = lib.mdDoc "Path to the snapshot root directory";
-              };
-              suffix = mkOption {
+              user = mkOption {
                 type = types.str;
-                default = "";
-                description = lib.mdDoc "Suffix for the snapshot root (e.g. '-snapshots')";
+                description = lib.mdDoc "Username to assign to the IP address";
+              };
+              roles = mkOption {
+                type = types.listOf types.str;
+                description = lib.mdDoc "Roles to assign to the user";
               };
             };
           };
 
-          snapshotRoots = mkOption {
-              type = types.attrsOf snapshotRoot;
-              default = {};
-          };
-
           configuration_file = pkgs.writeTextFile {
-            name = "snapshot-browser-config-api";
+            name = "static-ip-auth-proxy-configuration.json";
             text = (builtins.toJSON cfg.configuration);
           };
         in {
           # https://britter.dev/blog/2025/01/09/nixos-modules/
-          options.hochreiner.services.snapshot-browser-api = {
-            enable = mkEnableOption "Enables the snapshot-browser service";
+          options.hochreiner.services.static-ip-authentication-proxy = {
+            enable = mkEnableOption "Enables the static ip authentication proxy service";
 
             configuration = mkOption {
               type = types.submodule {
                 options = {
-                  snapshot_roots = mkOption {
-                    type = types.attrsOf (types.submodule snapshotRoot);
+                  ip_mapping = mkOption {
+                    type = types.attrsOf (types.submodule ipMapping);
+                  };
+                  user_header = mkOption {
+                    type = types.str;
+                    default = "X-Auth-Username";
+                    description = lib.mdDoc "HTTP header to set the authenticated user in";
+                  };
+                  roles_header = mkOption {
+                    type = types.str;
+                    default = "X-Auth-Roles";
+                    description = lib.mdDoc "HTTP header to set the authenticated user's roles in (comma-separated list)";
+                  };
+                  token_header = mkOption {
+                    type = types.str;
+                    default = "X-Auth-Token";
+                    description = lib.mdDoc "HTTP header to set the authenticated user's token in (SHA256 HMAC of username and secret key)";
+                  };
+                  secret_file = mkOption {
+                    type = types.path;
+                    description = lib.mdDoc "Path to the secret key file used for HMAC token generation";
                   };
                 };
               };
-              default = { snapshot_roots = {}; };
+              default = { ip_mapping = {}; };
             };
 
             log_level = mkOption {
@@ -124,15 +137,15 @@
           };
 
           config = mkIf cfg.enable {
-            systemd.services."hochreiner.snapshot-browser-api" = {
+            systemd.services."hochreiner.static-ip-authentication-proxy" = {
               wantedBy = [ "multi-user.target" ];
-              description = "snapshot-browser API service";
+              description = "static ip authentication proxy service";
               serviceConfig = let
                 pkg = self.packages.${system}.default;
               in {
                 Type = "simple";
-                ExecStart = "${pkg}/bin/snapshot-browser-api";
-                Environment = "RUST_LOG=${cfg.log_level} ROCKET_ADDRESS='${cfg.address}' ROCKET_PORT=${builtins.toString cfg.port} SNAPSHOT_CONFIG_PATH='${configuration_file}' PATH=/run/current-system/sw/bin";
+                ExecStart = "${pkg}/bin/static-ip-authentication-proxy";
+                Environment = "RUST_LOG=${cfg.log_level} ROCKET_ADDRESS='${cfg.address}' ROCKET_PORT=${builtins.toString cfg.port} CONFIG_PATH='${configuration_file}' PATH=/run/current-system/sw/bin";
               };
             };
           };
@@ -153,32 +166,48 @@
       # NixOS configuration for testing
       # https://xeiaso.net/blog/nix-flakes-3-2022-04-07/
       nixosConfigurations = {
-        sb-api-test = nixpkgs.lib.nixosSystem {
+        siap-test = nixpkgs.lib.nixosSystem {
           inherit system;
 
           modules = [
             self.nixosModules.${system}.default
-            ({pkgs, ...}: {
+            ({pkgs, ...}: let 
+              key_file = pkgs.writeTextFile {
+                name = "key";
+                text = "the_secret";
+              };
+            in {
               # Only allow this to boot as a container
               boot.isContainer = true;
-              networking.hostName = "sb-api-test";
+              networking.hostName = "siap-test";
 
               # Allow nginx through the firewall
               networking.firewall.allowedTCPPorts = [ 80 ];
 
               # services.nginx.enable = true;
-              hochreiner.services.snapshot-browser-api = {
+              hochreiner.services.static-ip-authentication-proxy = {
                 enable = true;
-                configuration.snapshot_roots = {
-                  "root1" = {
-                    path = "/some/path/1/";
-                    suffix = "_suffix_1";
+                configuration = {
+                  ip_mapping = {
+                    "192.168.0.1" = {
+                      user = "alice";
+                      roles = [ "admin" "user" ];
+                    };
+                    "192.168.0.2" = {
+                      user = "bob";
+                      roles = [ "user" ];
+                    };
+                    "192.168.0.3" = {
+                      user = "foo";
+                      roles = [ "viewer" "user" ];
+                    };
                   };
-                  "root2" = {
-                    path = "/some/path/2/";
-                    suffix = "_suffix_2";
-                  };
+                  user_header = "X-Auth-CouchDB-Username";
+                  roles_header = "X-Auth-CouchDB-Roles";
+                  token_header = "X-Auth-CouchDB-Token";
+                  secret_file = "${key_file}";
                 };
+                log_level = "debug";
                 address = "10.233.1.2";
                 port = 80;
               };

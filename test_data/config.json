@@ -1,0 +1,34 @@
+{
+  "ip_mapping": {
+    "127.0.0.1": {
+      "user": "admin",
+      "roles": [
+        "administrator",
+        "editor"
+      ]
+    },
+    "::1": {
+      "user": "admin",
+      "roles": [
+        "administrator",
+        "editor"
+      ]
+    },
+    "192.168.0.12": {
+      "user": "editor_user",
+      "roles": [
+        "editor"
+      ]
+    },
+    "192.168.0.13": {
+      "user": "guest",
+      "roles": [
+        "viewer"
+      ]
+    }
+  },
+  "user_header": "X-Auth-UserName",
+  "roles_header": "X-Roles",
+  "token_header": "X-Auth-Token",
+  "secret_file": "test_data/key"
+}
