@@ -155,7 +155,7 @@
         name = "siap";
 
         shellHook = ''
-          # exec nu
+          code .
         '';
         buildInputs = with pkgs; [
           rust-bin-custom
