@@ -1,5 +1,7 @@
 # Static IP Authentication Proxy
 A simple web proxy authenticating users based on their IP.
+The envisioned usage scenario is VPN where all clients have pre-assigned IP addresses.
+Hence, an IP address uniquely and securely identifies a user or even a user and device combination.
 
 ## Configuration
 The application reads the configuration file pointed to by the environment variable ``CONFIG_PATH`` at start up.
@@ -21,6 +23,24 @@ struct UserInfo {
 }
 ```
 In addition, all environment variables defined by the ``log`` and ``rocket`` crates can be used.
+
+## Requirements
+### User Stories
+#### IP Address / user / groups configuration
+As an administrator I want to be able to configure combinations of IP addresses (IPv4 and IPv6), users, and roles, so that I can specify for each IP address, which user it is assigned to and which roles this user has.
+
+#### Header configuration
+As an administrator I want to be able to configure the names of the headers that contain the information about the user, roles, and token, so that I can adapt the system to the requirements of different target systems.
+
+### Non-functional Requirements
+#### nginx compatibility
+The system must be compatible with the nginx authentication sub-request mechanism.
+
+#### CouchDB compatibility
+The system must be able to provide header compatible with the CouchDB proxy authentication mechanism.
+
+#### Nix compatibility
+The system must be compatible with the nix packaging and secret mechanisms.
 
 ## References
 - [CouchDB - Proxy Authentication](https://docs.couchdb.org/en/stable/api/server/authn.html#proxy-authentication)
