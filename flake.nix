@@ -5,34 +5,23 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, rust-overlay, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, ... }:
     let
       system = "x86_64-linux";
 
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ (import rust-overlay) ];
       };
 
       pkgs-unstable = import nixpkgs-unstable {
         inherit system;
       };
 
-      rust-bin-custom = pkgs.rust-bin.stable.latest.default.override {
-        extensions = [ "rust-src" "rust-analyzer" ];
-        targets = [ "x86_64-unknown-linux-gnu" ];
-      };
-
       siap-cargo-toml = (builtins.fromTOML (builtins.readFile ./Cargo.toml));
       hashes-toml = (builtins.fromTOML (builtins.readFile ./hashes.toml));
-      path = builtins.concatStringsSep ":" (builtins.map (p: p + "/bin") (with pkgs; [gcc_multi rust-bin-custom coreutils]));
+      path = builtins.concatStringsSep ":" (builtins.map (p: p + "/bin") (with pkgs; [gcc_multi rustc cargo rust-analyzer coreutils]));
 
       siap-deps = derivation {
         inherit system;
@@ -158,7 +147,9 @@
           code .
         '';
         buildInputs = with pkgs; [
-          rust-bin-custom
+          rustc
+          cargo
+          rust-analyzer
           pkgs-unstable.bun
         ];
       };
