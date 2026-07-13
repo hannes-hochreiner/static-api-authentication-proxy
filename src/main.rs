@@ -101,7 +101,7 @@ fn authorize(
             };
         }
     };
-    let secret = secrets.0.get(&host_name.0).unwrap();
+    let secret = secrets.0.get(&host_name.0).unwrap(); // key guaranteed present: secrets is built from config.hosts
     match host_config.ip_mapping.get(&client_real_ip) {
         Some(user_info) => {
             log::info!(
@@ -169,6 +169,7 @@ async fn main() {
         .manage(HostSecrets(secrets));
     if let Err(e) = rocket.launch().await {
         println!("Whoops! Rocket didn't launch!");
+        // We drop the error to get a Rocket-formatted panic.
         drop(e);
     };
 }
