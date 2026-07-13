@@ -67,6 +67,35 @@
             };
           };
 
+          hostConfig = {
+            options = {
+              ip_mapping = mkOption {
+                type = types.attrsOf (types.submodule ipMapping);
+                default = {};
+                description = lib.mdDoc "Map of IP addresses to user/role configurations";
+              };
+              user_header = mkOption {
+                type = types.str;
+                default = "X-Auth-Username";
+                description = lib.mdDoc "HTTP header to set the authenticated user in";
+              };
+              roles_header = mkOption {
+                type = types.str;
+                default = "X-Auth-Roles";
+                description = lib.mdDoc "HTTP header to set the authenticated user's roles in (comma-separated list)";
+              };
+              token_header = mkOption {
+                type = types.str;
+                default = "X-Auth-Token";
+                description = lib.mdDoc "HTTP header to set the authenticated user's token in (SHA256 HMAC of username and secret key)";
+              };
+              secret_file = mkOption {
+                type = types.path;
+                description = lib.mdDoc "Path to the secret key file used for HMAC token generation";
+              };
+            };
+          };
+
           configuration_file = pkgs.writeTextFile {
             name = "static-ip-auth-proxy-configuration.json";
             text = (builtins.toJSON cfg.configuration);
@@ -79,31 +108,19 @@
             configuration = mkOption {
               type = types.submodule {
                 options = {
-                  ip_mapping = mkOption {
-                    type = types.attrsOf (types.submodule ipMapping);
-                  };
-                  user_header = mkOption {
+                  host_header = mkOption {
                     type = types.str;
-                    default = "X-Auth-Username";
-                    description = lib.mdDoc "HTTP header to set the authenticated user in";
+                    default = "X-Original-Host";
+                    description = lib.mdDoc "HTTP request header nginx passes to identify the target service; each key in 'hosts' is matched against this header's value";
                   };
-                  roles_header = mkOption {
-                    type = types.str;
-                    default = "X-Auth-Roles";
-                    description = lib.mdDoc "HTTP header to set the authenticated user's roles in (comma-separated list)";
-                  };
-                  token_header = mkOption {
-                    type = types.str;
-                    default = "X-Auth-Token";
-                    description = lib.mdDoc "HTTP header to set the authenticated user's token in (SHA256 HMAC of username and secret key)";
-                  };
-                  secret_file = mkOption {
-                    type = types.path;
-                    description = lib.mdDoc "Path to the secret key file used for HMAC token generation";
+                  hosts = mkOption {
+                    type = types.attrsOf (types.submodule hostConfig);
+                    default = {};
+                    description = lib.mdDoc "Per-host configurations, keyed by the hostname string matched against the host_header value";
                   };
                 };
               };
-              default = { ip_mapping = {}; };
+              default = { host_header = "X-Original-Host"; hosts = {}; };
             };
 
             log_level = mkOption {
@@ -179,24 +196,29 @@
               hochreiner.services.static-ip-authentication-proxy = {
                 enable = true;
                 configuration = {
-                  ip_mapping = {
-                    "192.168.0.1" = {
-                      user = "alice";
-                      roles = [ "admin" "user" ];
-                    };
-                    "192.168.0.2" = {
-                      user = "bob";
-                      roles = [ "user" ];
-                    };
-                    "192.168.0.3" = {
-                      user = "foo";
-                      roles = [ "viewer" "user" ];
+                  host_header = "X-Original-Host";
+                  hosts = {
+                    "siap-test" = {
+                      ip_mapping = {
+                        "192.168.0.1" = {
+                          user = "alice";
+                          roles = [ "admin" "user" ];
+                        };
+                        "192.168.0.2" = {
+                          user = "bob";
+                          roles = [ "user" ];
+                        };
+                        "192.168.0.3" = {
+                          user = "foo";
+                          roles = [ "viewer" "user" ];
+                        };
+                      };
+                      user_header = "X-Auth-CouchDB-Username";
+                      roles_header = "X-Auth-CouchDB-Roles";
+                      token_header = "X-Auth-CouchDB-Token";
+                      secret_file = "${key_file}";
                     };
                   };
-                  user_header = "X-Auth-CouchDB-Username";
-                  roles_header = "X-Auth-CouchDB-Roles";
-                  token_header = "X-Auth-CouchDB-Token";
-                  secret_file = "${key_file}";
                 };
                 log_level = "debug";
                 address = "10.233.1.2";
