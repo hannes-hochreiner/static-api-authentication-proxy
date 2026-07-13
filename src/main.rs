@@ -2,8 +2,10 @@
 extern crate rocket;
 use hmac::digest::InvalidLength;
 use rocket::{
+    Request,
     State,
     http::{Header, Status},
+    request::{FromRequest, Outcome},
     response::Responder,
     serde::json::{Json, serde_json},
 };
@@ -25,6 +27,12 @@ struct SystemInfo {
 
 #[derive(Deserialize)]
 struct SystemConfig {
+    host_header: String,
+    hosts: HashMap<String, HostConfig>,
+}
+
+#[derive(Deserialize)]
+struct HostConfig {
     ip_mapping: HashMap<IpAddr, UserInfo>,
     user_header: String,
     roles_header: String,
@@ -38,13 +46,28 @@ struct UserInfo {
     roles: Vec<String>,
 }
 
-struct SecretKey(Vec<u8>);
+struct HostSecrets(HashMap<String, Vec<u8>>);
 
 impl SystemConfig {
     pub fn from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let config: SystemConfig = serde_json::from_str(&content)?;
         Ok(config)
+    }
+}
+
+struct HostName(String);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for HostName {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let config = request.rocket().state::<SystemConfig>().unwrap();
+        match request.headers().get_one(&config.host_header) {
+            Some(h) => Outcome::Success(HostName(h.to_string())),
+            None => Outcome::Error((Status::Unauthorized, ())),
+        }
     }
 }
 
@@ -64,11 +87,22 @@ enum SiapResponse {
 #[get("/auth")]
 fn authorize(
     client_real_ip: IpAddr,
+    host_name: HostName,
     config: &State<SystemConfig>,
-    secret_key: &State<SecretKey>,
+    secrets: &State<HostSecrets>,
 ) -> SiapResponse {
     log::info!("Authorization request from IP: {}", client_real_ip);
-    match config.ip_mapping.get(&client_real_ip) {
+    let host_config = match config.hosts.get(&host_name.0) {
+        Some(hc) => hc,
+        None => {
+            log::warn!("No configuration for host: {}", host_name.0);
+            return SiapResponse::Unauthorized {
+                inner: Status::Unauthorized,
+            };
+        }
+    };
+    let secret = secrets.0.get(&host_name.0).unwrap();
+    match host_config.ip_mapping.get(&client_real_ip) {
         Some(user_info) => {
             log::info!(
                 "Authorized user: {}, roles: {:?}",
@@ -76,12 +110,12 @@ fn authorize(
                 user_info.roles
             );
             let roles_str = user_info.roles.join(",");
-            match create_token(&user_info.user, &secret_key.0) {
+            match create_token(&user_info.user, secret) {
                 Ok(token) => SiapResponse::Authorized {
                     inner: Status::Ok,
-                    user: Header::new(config.user_header.clone(), user_info.user.clone()),
-                    roles: Header::new(config.roles_header.clone(), roles_str),
-                    token: Header::new(config.token_header.clone(), token),
+                    user: Header::new(host_config.user_header.clone(), user_info.user.clone()),
+                    roles: Header::new(host_config.roles_header.clone(), roles_str),
+                    token: Header::new(host_config.token_header.clone(), token),
                 },
                 Err(e) => {
                     log::error!("Failed to create token: {}", e);
@@ -121,19 +155,20 @@ async fn main() {
     )
     .expect("Failed to load config");
 
-    let secret_key = SecretKey(
-        rocket::tokio::fs::read(config.secret_file.clone())
+    let mut secrets = HashMap::new();
+    for (host, host_config) in &config.hosts {
+        let key = rocket::tokio::fs::read(&host_config.secret_file)
             .await
-            .expect("Failed to load secret key file"),
-    );
+            .unwrap_or_else(|_| panic!("Failed to load secret key for host: {}", host));
+        secrets.insert(host.clone(), key);
+    }
 
     let rocket = rocket::build()
         .mount("/", routes![info, authorize])
         .manage(config)
-        .manage(secret_key);
+        .manage(HostSecrets(secrets));
     if let Err(e) = rocket.launch().await {
         println!("Whoops! Rocket didn't launch!");
-        // We drop the error to get a Rocket-formatted panic.
         drop(e);
     };
 }
