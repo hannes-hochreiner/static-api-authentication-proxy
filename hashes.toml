@@ -1,8 +1,8 @@
-deps = "sha256-NneIwM1RAS3E1PG5g7M1y5cGO9D2VN6kBn8HmYfP85U="
+deps = "sha256-pT58tQECXQ4V/ohDj66vFemlOAtULkmVhxN76kP01Do="
 cargo_config = '''[source.crates-io]
 replace-with = "vendored-sources"
 
 [source.vendored-sources]
-directory = "/tmp/nix-shell.HU05dZ/siap-dev-vendor-a7a0c32a-fa01-46a2-b5cc-921228b6dd7d"
+directory = "/tmp/nix-shell.Ysf7ZI/siap-dev-vendor-587f286c-4174-4d90-9b34-deeabe6e0775"
 '''
-cargo_lock = "c3ec48cc4e4926b6c3bf36dd6c53ea04c1e8a3d5463e52f6f588b8802ea0b082"
+cargo_lock = "f2694113de540007dee0806c0ee13ad3a78e3cec98537a445553a200ad344586"
