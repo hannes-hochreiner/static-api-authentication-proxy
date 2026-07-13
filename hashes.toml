@@ -3,6 +3,6 @@ cargo_config = '''[source.crates-io]
 replace-with = "vendored-sources"
 
 [source.vendored-sources]
-directory = "/tmp/nix-shell.Ysf7ZI/siap-dev-vendor-587f286c-4174-4d90-9b34-deeabe6e0775"
+directory = "/tmp/nix-shell.Ysf7ZI/siap-dev-vendor-8d3e3726-ef7c-43fb-b441-bfac96221c29"
 '''
-cargo_lock = "f2694113de540007dee0806c0ee13ad3a78e3cec98537a445553a200ad344586"
+cargo_lock = "189b0da4ad1c5bdd5e78af1bbc8bfb013cfa77b72022f0e3ce63163399f3ed23"
