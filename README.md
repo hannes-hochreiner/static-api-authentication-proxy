@@ -6,9 +6,18 @@ Hence, an IP address uniquely and securely identifies a user or even a user and 
 ## Configuration
 The application reads the configuration file pointed to by the environment variable ``CONFIG_PATH`` at start up.
 The configuration file can be any format that can be deserialized into a ``SystemConfig`` Rust object.
+The `host_header` field specifies the name of the HTTP request header that nginx passes to identify the target service.
+Each key in the `hosts` map is a hostname string that is matched against the value of this header.
+
 ```rust
 #[derive(Deserialize)]
 struct SystemConfig {
+    host_header: String,
+    hosts: HashMap<String, HostConfig>,
+}
+
+#[derive(Deserialize)]
+struct HostConfig {
     ip_mapping: HashMap<IpAddr, UserInfo>,
     user_header: String,
     roles_header: String,
