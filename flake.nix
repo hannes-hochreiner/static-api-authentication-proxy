@@ -49,11 +49,11 @@
         default = siap-bin;
       };
 
-      nixosModules.${system}.default = { config, lib, pkgs, ... }:
+      nixosModules.default = { config, lib, pkgs, ... }:
         with lib;
         let
           cfg = config.hochreiner.services.static-ip-authentication-proxy;
-    
+
           ipMapping = {
             options = {
               user = mkOption {
@@ -137,21 +137,40 @@
 
             address = mkOption {
               type = types.str;
-              default = "0.0.0.0";
-              description = lib.mdDoc "Address to bind the snapshot-browser service to";
+              default = "127.0.0.1";
+              description = lib.mdDoc "Address to bind the service to";
+            };
+
+            package = mkOption {
+              type = types.package;
+              default = self.packages.${pkgs.system}.default;
+              description = lib.mdDoc "The static-ip-authentication-proxy package to use";
             };
           };
 
           config = mkIf cfg.enable {
+            users.users.hochreiner-siap = {
+              isSystemUser = true;
+              group = "hochreiner-siap";
+            };
+            users.groups.hochreiner-siap = {};
+
             systemd.services."hochreiner.static-ip-authentication-proxy" = {
               wantedBy = [ "multi-user.target" ];
               description = "static ip authentication proxy service";
-              serviceConfig = let
-                pkg = self.packages.${system}.default;
-              in {
+              serviceConfig = {
                 Type = "simple";
-                ExecStart = "${pkg}/bin/static-ip-authentication-proxy";
-                Environment = "RUST_LOG=${cfg.log_level} ROCKET_ADDRESS='${cfg.address}' ROCKET_PORT=${builtins.toString cfg.port} CONFIG_PATH='${configuration_file}' PATH=/run/current-system/sw/bin";
+                User = "hochreiner-siap";
+                Group = "hochreiner-siap";
+                ExecStart = "${cfg.package}/bin/static-ip-authentication-proxy";
+                Environment = [
+                  "RUST_LOG=${cfg.log_level}"
+                  "ROCKET_ADDRESS=${cfg.address}"
+                  "ROCKET_PORT=${builtins.toString cfg.port}"
+                  "ROCKET_IP_HEADER=X-Real-IP"
+                  "CONFIG_PATH=${configuration_file}"
+                  "PATH=/run/current-system/sw/bin"
+                ];
               };
             };
           };
@@ -178,7 +197,7 @@
           inherit system;
 
           modules = [
-            self.nixosModules.${system}.default
+            self.nixosModules.default
             ({pkgs, ...}: let 
               key_file = pkgs.writeTextFile {
                 name = "key";
