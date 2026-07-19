@@ -101,6 +101,7 @@
             text = (builtins.toJSON cfg.configuration);
           };
         in {
+          key = "hochreiner-static-ip-authentication-proxy";
           # https://britter.dev/blog/2025/01/09/nixos-modules/
           options.hochreiner.services.static-ip-authentication-proxy = {
             enable = mkEnableOption "Enables the static ip authentication proxy service";
